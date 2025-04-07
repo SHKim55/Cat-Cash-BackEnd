@@ -16,7 +16,7 @@ public class CategoryEntity {
     @Column(name = "category_id", nullable = false)
     private Long categoryId;
 
-    @Column(nullable = false)
+    @Column(name = "`group`", nullable = false)
     private String group;
 
     @Column(nullable = false)
