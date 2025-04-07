@@ -25,7 +25,7 @@ public class ChatPromptEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
-    @OneToOne(mappedBy = "chatPrompt", cascade = CascadeType.ALL)
+    @OneToOne
+    @JoinColumn(name = "user_cat_id", nullable = false)
     private UserCatEntity userCat;
-
 }
