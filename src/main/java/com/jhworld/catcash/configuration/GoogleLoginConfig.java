@@ -27,7 +27,7 @@ public class GoogleLoginConfig {
 
     private final String responseType = "code";
 
-    private final String scope = "email profile";
+    private final String scope = "email+profile";
 
     private final String grantType = "authorization_code";
 }
