@@ -1,0 +1,58 @@
+package com.jhworld.catcash.configuration;
+
+import com.jhworld.catcash.entity.UserEntity;
+import com.jhworld.catcash.repository.UserRepository;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+@Component
+public class JwtAuthFilter extends OncePerRequestFilter {
+    private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
+
+    public JwtAuthFilter(final JwtUtil jwtUtil, UserRepository userRepository) {
+        this.jwtUtil = jwtUtil;
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
+        // 요청 헤더에서 JWT 토큰 추출
+        String authHeader = request.getHeader("Authorization");
+        String token = null;
+        String userSeq = null;
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+            userSeq = jwtUtil.extractClaims(token).getSubject();
+        }
+
+        // 토큰이 존재하고 사용자 인증이 되어 있지 않은 경우
+        if (userSeq != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            UserEntity userEntity = userRepository.findByUserSequence(userSeq).orElse(null);
+
+            // 토큰이 유효한 경우 인증 설정
+            if (userEntity != null && jwtUtil.isTokenValid(token, userEntity.getUserSequence())) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        userSeq, null, null);
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
+
+        // 필터 체인을 타고 다음 필터로 진행
+        filterChain.doFilter(request, response);
+    }
+}
