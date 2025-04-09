@@ -32,8 +32,7 @@ public class UserEntity {
     private String profileImageUrl;
 
     @Column(nullable = false)
-    @Enumerated(EnumType.STRING)
-    private Gender gender;
+    private String gender;
 
     @Column(name = "created_time", nullable = false)
     private LocalDateTime createdTime;
