@@ -18,7 +18,7 @@ public class LoginController {
         return loginService.loadGoogleLoginPage();
     }
 
-    @PostMapping("/process/google")
+    @GetMapping("/process/google")
     public void logInViaGoogle(@RequestParam(name = "code") String code) {
         loginService.logInViaGoogle(code);
     }
@@ -29,7 +29,7 @@ public class LoginController {
         return null;
     }
 
-    @PostMapping("/process/kakao")
+    @GetMapping("/process/kakao")
     public String logInViaKakao() {
         return null;
     }
