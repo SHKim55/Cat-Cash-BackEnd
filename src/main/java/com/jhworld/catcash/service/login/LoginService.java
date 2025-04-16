@@ -49,9 +49,16 @@ public class LoginService {
     private String requestGoogleAccessToken(final String code) {
         final String decodedCode = URLDecoder.decode(code, StandardCharsets.UTF_8);
         final HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+        headers.add(HttpHeaders.ACCEPT, MediaType.APPLICATION_FORM_URLENCODED_VALUE);
 
-        GoogleLoginRequest googleClient = GoogleLoginRequest.builder().code(decodedCode).build();
+        GoogleLoginRequest googleClient = GoogleLoginRequest.builder()
+                .code(decodedCode)
+                .clientId(googleLoginConfig.getClientId())
+                .clientSecret(googleLoginConfig.getClientSecret())
+                .grantType(googleLoginConfig.getGrantType())
+                .redirectUri(googleLoginConfig.getRedirectUri())
+                .build();
+
         HttpEntity<GoogleLoginRequest> httpEntity = new HttpEntity<>(googleClient, headers);
 
         // 구글 Access Token 요청
@@ -109,7 +116,14 @@ public class LoginService {
                         .modifiedTime(LocalDateTime.now())
                         .build();
 
+
+                System.out.println(newUserEntity.getUserSequence());
+                System.out.println(newUserEntity.getUsername());
+
                 userEntity = userRepository.save(newUserEntity);
+
+                System.out.println(userEntity.getUserSequence());
+                System.out.println(userEntity.getUsername());
             } else {
                 userEntity = optionalUserEntity.get();
             }
@@ -119,16 +133,9 @@ public class LoginService {
         }
 
         try {
-            Authentication authentication = authenticationManager.authenticate(
-                    // UserSequence 기반
-                    new UsernamePasswordAuthenticationToken(userEntity.getUserSequence(), null)
-            );
+            jwtToken = jwtUtil.generateToken(userEntity.getUsername());
 
-            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-            jwtToken = jwtUtil.generateToken(userDetails.getUsername());
-
-
-        } catch (AuthenticationException e) {
+        } catch (Exception e) {
             e.printStackTrace();
             System.out.println("Error: failed to create jwt token");
             return;

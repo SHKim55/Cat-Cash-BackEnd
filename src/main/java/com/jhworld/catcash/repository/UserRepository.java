@@ -10,4 +10,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findById(Long aLong);
 
     Optional<UserEntity> findByUserSequence(String userSequence);
+
+    @Override
+    <S extends UserEntity> S save(S entity);
 }
