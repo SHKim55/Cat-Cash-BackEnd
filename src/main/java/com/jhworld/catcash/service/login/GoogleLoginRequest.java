@@ -4,11 +4,12 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 @Builder
+@Getter
 @NoArgsConstructor
 @AllArgsConstructor
 public class GoogleLoginRequest {
@@ -19,4 +20,6 @@ public class GoogleLoginRequest {
     private String clientSecret;
 
     private String redirectUri;
+
+    private String grantType;
 }

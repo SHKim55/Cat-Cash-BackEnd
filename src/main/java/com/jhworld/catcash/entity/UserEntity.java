@@ -10,7 +10,8 @@ import java.util.List;
 @Builder
 @Getter
 @Setter
-@Entity(name = "`user`")
+@Entity
+@Table(name = "`user`")
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserEntity {
@@ -31,7 +32,7 @@ public class UserEntity {
     @Column(name = "profile_image_url", nullable = true)
     private String profileImageUrl;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String gender;
 
     @Column(name = "created_time", nullable = false)
