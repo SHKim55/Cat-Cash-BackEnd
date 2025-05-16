@@ -85,7 +85,6 @@ public class LoginService {
                 + "&response_type=" + googleLoginConfig.getResponseType()
                 + "&scope=" + googleLoginConfig.getScope();
 
-        System.out.println(uri);
         return ResponseEntity.ok(uri);
     }
 
@@ -94,6 +93,7 @@ public class LoginService {
         UserEntity userEntity;
         GoogleUserProfile googleUserProfile;
         String jwtToken;
+        Integer isNewUser;
 
         try {
             String accessToken = requestGoogleAccessToken(code);
@@ -116,16 +116,11 @@ public class LoginService {
                         .modifiedTime(LocalDateTime.now())
                         .build();
 
-
-                System.out.println(newUserEntity.getUserSequence());
-                System.out.println(newUserEntity.getUsername());
-
                 userEntity = userRepository.save(newUserEntity);
-
-                System.out.println(userEntity.getUserSequence());
-                System.out.println(userEntity.getUsername());
+                isNewUser = 0;
             } else {
                 userEntity = optionalUserEntity.get();
+                isNewUser = 1;
             }
         } catch (Exception e) {
             System.out.println("Error: failed to load or save user profile\n");
@@ -144,6 +139,7 @@ public class LoginService {
         try {
             String redirectUrl = UriComponentsBuilder.fromUriString(clientRedirectUri)
                     .queryParam("token", jwtToken)
+                    .queryParam("u", isNewUser.toString())    // 0:신규, 1:기존
                     .build().toUriString();
             httpServletResponse.sendRedirect(redirectUrl);
         } catch (Exception e) {
