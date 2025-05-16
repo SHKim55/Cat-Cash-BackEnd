@@ -53,6 +53,9 @@ public class UserEntity {
     @Builder.Default
     private Long savingProportion = 0L;
 
+    @Column(name = "expense_type", nullable = false)
+    private String expenseType;
+
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<UserCatEntity> userCats;
@@ -71,4 +74,7 @@ public class UserEntity {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<ChatPromptEntity> chatPrompts;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private List<UserCategoryEntity> userCategories;
 }
