@@ -2,8 +2,10 @@ package com.jhworld.catcash.service.login;
 
 import com.jhworld.catcash.configuration.GoogleLoginConfig;
 import com.jhworld.catcash.configuration.JwtUtil;
+import com.jhworld.catcash.dto.login.NewUserCheckDTO;
 import com.jhworld.catcash.entity.UserEntity;
 import com.jhworld.catcash.repository.UserRepository;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +16,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -78,6 +81,14 @@ public class LoginService {
                 .getBody();
     }
 
+    public UserEntity findUserByToken(String token) {
+        Claims claims = jwtUtil.extractTokenValue(token);
+        String userSeq = claims.get("sub", String.class); // userSeq 추출
+
+        Optional<UserEntity> optionalUserEntity = userRepository.findByUserSequence(userSeq);
+        return optionalUserEntity.orElse(null);
+    }
+
     public ResponseEntity<String> loadGoogleLoginPage() {
         String uri = googleLoginConfig.getLoginPageUrl() + "?"
                 + "client_id=" + googleLoginConfig.getClientId()
@@ -114,6 +125,7 @@ public class LoginService {
                         .profileImageUrl(googleUserProfile.getPicture())
                         .createdTime(LocalDateTime.now())
                         .modifiedTime(LocalDateTime.now())
+                        .isNew(true)
                         .build();
 
                 userEntity = userRepository.save(newUserEntity);
@@ -128,7 +140,7 @@ public class LoginService {
         }
 
         try {
-            jwtToken = jwtUtil.generateToken(userEntity.getUsername());
+            jwtToken = jwtUtil.generateToken(userEntity.getUserSequence());  // 사용자 이름이 아닌 seq 일련번호로 토큰 생성
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -139,12 +151,31 @@ public class LoginService {
         try {
             String redirectUrl = UriComponentsBuilder.fromUriString(clientRedirectUri)
                     .queryParam("token", jwtToken)
-                    .queryParam("u", isNewUser.toString())    // 0:신규, 1:기존
+//                    .queryParam("u", isNewUser.toString())    // 1:신규, 0:기존
                     .build().toUriString();
+
+            System.out.println(redirectUrl);
+
             httpServletResponse.sendRedirect(redirectUrl);
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println("Error: failed to redirect to client");
         }
+    }
+
+    public ResponseEntity<NewUserCheckDTO> isNewUser(String token) {
+        UserEntity userEntity = findUserByToken(token);
+
+        if(userEntity == null) {
+            System.out.println("Error: user not found");
+            return null;
+        }
+
+        if(userEntity.getIsNew()) {
+            return ResponseEntity.ok().body(NewUserCheckDTO.builder().isNew(1).build());
+        } else {
+            return ResponseEntity.ok().body(NewUserCheckDTO.builder().isNew(0).build());
+        }
+
     }
 }
