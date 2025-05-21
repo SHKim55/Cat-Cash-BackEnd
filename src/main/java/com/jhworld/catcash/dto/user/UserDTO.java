@@ -23,6 +23,7 @@ public class UserDTO {
     private Long savingProportion;
     private String expenseType;
     private Boolean isNew;
+    private Long coin;
 
     public static UserDTO convertEntityToDTO(final UserEntity userEntity) {
         return UserDTO.builder()
@@ -39,6 +40,7 @@ public class UserDTO {
                 .savingProportion(userEntity.getSavingProportion())
                 .expenseType(userEntity.getExpenseType())
                 .isNew(userEntity.getIsNew())
+                .coin(userEntity.getCoin())
                 .build();
     }
 
@@ -57,6 +59,7 @@ public class UserDTO {
                 .savingProportion(userDTO.getSavingProportion())
                 .expenseType(userDTO.getExpenseType())
                 .isNew(userDTO.getIsNew())
+                .coin(userDTO.getCoin())
                 .build();
     }
 }
