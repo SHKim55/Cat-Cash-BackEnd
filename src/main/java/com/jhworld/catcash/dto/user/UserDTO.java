@@ -22,6 +22,7 @@ public class UserDTO {
     private Long fixedExpenditure;
     private Long savingProportion;
     private String expenseType;
+    private Boolean isNew;
 
     public static UserDTO convertEntityToDTO(final UserEntity userEntity) {
         return UserDTO.builder()
@@ -37,6 +38,7 @@ public class UserDTO {
                 .fixedExpenditure(userEntity.getFixedExpenditure())
                 .savingProportion(userEntity.getSavingProportion())
                 .expenseType(userEntity.getExpenseType())
+                .isNew(userEntity.getIsNew())
                 .build();
     }
 
@@ -54,6 +56,7 @@ public class UserDTO {
                 .fixedExpenditure(userDTO.getFixedExpenditure())
                 .savingProportion(userDTO.getSavingProportion())
                 .expenseType(userDTO.getExpenseType())
+                .isNew(userDTO.getIsNew())
                 .build();
     }
 }
