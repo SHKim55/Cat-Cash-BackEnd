@@ -60,6 +60,10 @@ public class UserEntity {
     @Builder.Default
     private Boolean isNew = true;
 
+    @Column(name = "coin", nullable = false)
+    @Builder.Default
+    private Long coin = 150L;
+
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<UserCatEntity> userCats;
