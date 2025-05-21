@@ -1,5 +1,6 @@
 package com.jhworld.catcash.controller;
 
+import com.jhworld.catcash.dto.login.NewUserCheckDTO;
 import com.jhworld.catcash.service.login.LoginService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -32,5 +33,10 @@ public class LoginController {
     @GetMapping("/process/kakao")
     public String logInViaKakao() {
         return null;
+    }
+
+    @PostMapping("/new")
+    public ResponseEntity<NewUserCheckDTO> isNewUser(@RequestHeader(name = "Authorization") String token) {
+        return loginService.isNewUser(token);
     }
 }
