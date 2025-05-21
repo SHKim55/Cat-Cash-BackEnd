@@ -8,6 +8,7 @@ import com.jhworld.catcash.dto.user.UserOnboardDTO;
 import com.jhworld.catcash.entity.*;
 import com.jhworld.catcash.repository.*;
 import io.jsonwebtoken.Claims;
+import jakarta.transaction.Transactional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -42,6 +43,7 @@ public class UserService {
         return optionalUserEntity.orElse(null);
     }
 
+    @Transactional
     public ResponseEntity<UserCatDTO> onboardUser(String token, UserOnboardDTO userOnboardDTO) {
         UserEntity userEntity = findUserByToken(token);
         if(userEntity == null) {
@@ -62,6 +64,8 @@ public class UserService {
                 .fixedExpenditure(userOnboardDTO.getFixedExpenditure())
                 .savingProportion(userOnboardDTO.getSavingProportion())
                 .expenseType(userOnboardDTO.getExpenseType())
+                .isNew(userEntity.getIsNew())
+                .coin(userEntity.getCoin())
                 .build();
         userRepository.save(newUserEntity);
 
@@ -96,6 +100,9 @@ public class UserService {
                 .exp(0L)
                 .build();
         newUserCatEntity = userCatRepository.save(newUserCatEntity);
+
+        newUserEntity.setIsNew(false);
+        userRepository.save(newUserEntity);
 
         UserCatDTO userCatDTO = UserCatDTO.convertEntityToDTO(newUserCatEntity);
         return ResponseEntity.ok(userCatDTO);
