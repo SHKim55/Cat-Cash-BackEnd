@@ -15,10 +15,11 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secret;
 
-    @Value("${jwt.access-token-validity-in-seconds}")
-    private Long expirationTime;
+//    @Value("${jwt.access-token-validity-in-seconds}")
+//    private Long expirationTime;
 
     public String generateToken(String userSeq) {
+        long expirationTime= 1000L * 60 * 60 * 24 * 365;
         return Jwts.builder()
                 .setSubject(userSeq)
                 .setIssuedAt(new Date())

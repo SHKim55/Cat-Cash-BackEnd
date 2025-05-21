@@ -1,6 +1,6 @@
 package com.jhworld.catcash.service.store;
 
-import com.jhworld.catcash.dto.ItemBuyRequest;
+import com.jhworld.catcash.dto.store.ItemBuyRequest;
 import com.jhworld.catcash.entity.InventoryEntity;
 import com.jhworld.catcash.entity.ItemEntity;
 import com.jhworld.catcash.entity.UserEntity;

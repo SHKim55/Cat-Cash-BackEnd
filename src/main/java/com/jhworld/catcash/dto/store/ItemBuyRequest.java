@@ -1,4 +1,4 @@
-package com.jhworld.catcash.dto;
+package com.jhworld.catcash.dto.store;
 
 public class ItemBuyRequest {
     private Long itemId;
