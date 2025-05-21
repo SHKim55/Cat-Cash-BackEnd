@@ -16,7 +16,7 @@ public class StoreController {
     }
 
     @PostMapping("/buy")
-    public ResponseEntity<String> buyItem(@RequestBody ItemBuyRequest itemBuyRequest) {
-        return storeService.buyItem(itemBuyRequest);
+    public ResponseEntity<Boolean> buyItem(@RequestBody ItemBuyRequest itemBuyRequest, @RequestHeader("Authorization") String token) {
+        return storeService.buyItem(itemBuyRequest, token);
     }
 }
