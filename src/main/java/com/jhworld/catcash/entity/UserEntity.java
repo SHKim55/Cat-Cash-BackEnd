@@ -29,7 +29,7 @@ public class UserEntity {
     @Column(nullable = false)
     private String email;
 
-    @Column(name = "profile_image_url", nullable = true)
+    @Column(name = "profile_image_url", nullable = true, length = 1000)
     private String profileImageUrl;
 
     @Column(nullable = true)
@@ -53,8 +53,12 @@ public class UserEntity {
     @Builder.Default
     private Long savingProportion = 0L;
 
-    @Column(name = "expense_type", nullable = false)
+    @Column(name = "expense_type", nullable = true)
     private String expenseType;
+
+    @Column(name = "is_new", nullable = false)
+    @Builder.Default
+    private Boolean isNew = true;
 
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
