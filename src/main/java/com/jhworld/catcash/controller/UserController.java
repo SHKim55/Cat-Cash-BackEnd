@@ -1,6 +1,7 @@
 package com.jhworld.catcash.controller;
 
 import com.jhworld.catcash.dto.ResponseObject;
+import com.jhworld.catcash.dto.user.UserCatDTO;
 import com.jhworld.catcash.dto.user.UserDTO;
 import com.jhworld.catcash.dto.user.UserOnboardDTO;
 import com.jhworld.catcash.service.user.UserService;
@@ -17,7 +18,7 @@ public class UserController {
     }
 
     @PostMapping("/onboard")
-    public ResponseEntity<ResponseObject> onboardUser(@RequestHeader String token, @RequestBody UserOnboardDTO userOnboardDTO) {
+    public ResponseEntity<UserCatDTO> onboardUser(@RequestHeader String token, @RequestBody UserOnboardDTO userOnboardDTO) {
         return userService.onboardUser(token, userOnboardDTO);
     }
 
