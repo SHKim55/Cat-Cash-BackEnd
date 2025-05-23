@@ -30,4 +30,7 @@ public class BudgetEntity {
     @ManyToOne
     @JoinColumn(name = "category_id", nullable = false)
     private CategoryEntity category;
+
+    @Column(name = "content")
+    private String content;
 }

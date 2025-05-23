@@ -37,6 +37,8 @@ public class LoginController {
 
     @PostMapping("/new")
     public ResponseEntity<NewUserCheckDTO> isNewUser(@RequestHeader(name = "Authorization") String token) {
+        System.out.println("/auth/new running...");
+        System.out.println(token);
         return loginService.isNewUser(token);
     }
 }
