@@ -18,13 +18,18 @@ public class UserController {
     }
 
     @PostMapping("/onboard")
-    public ResponseEntity<UserCatDTO> onboardUser(@RequestHeader String token, @RequestBody UserOnboardDTO userOnboardDTO) {
+    public ResponseEntity<UserCatDTO> onboardUser(@RequestHeader("Authorization") String token, @RequestBody UserOnboardDTO userOnboardDTO) {
         return userService.onboardUser(token, userOnboardDTO);
     }
 
     @GetMapping("/info")
-    public ResponseEntity<UserDTO> getUserInfo(@RequestHeader String token) {
+    public ResponseEntity<UserDTO> getUserInfo(@RequestHeader("Authorization") String token) {
         return userService.getUserInfo(token);
+    }
+
+    @GetMapping("/enter/datas")
+    public ResponseEntity<String> getEnteringData(@RequestHeader("Authorization") String token) {
+        return userService.getEnteringData(token);
     }
 
 }

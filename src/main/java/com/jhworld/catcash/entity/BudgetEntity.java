@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @Entity(name = "budget")
 public class BudgetEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "budget_id", nullable = false)
     private Long budgetId;
 

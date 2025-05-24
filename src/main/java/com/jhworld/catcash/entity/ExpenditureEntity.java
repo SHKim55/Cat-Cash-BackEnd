@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @Entity(name = "expenditure")
 public class ExpenditureEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "expenditure_id", nullable = false)
     private Long expenditureId;
 

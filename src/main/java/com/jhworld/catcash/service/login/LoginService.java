@@ -168,8 +168,11 @@ public class LoginService {
 
         if(userEntity == null) {
             System.out.println("Error: user not found");
-            return null;
+//            return null;
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
+
+        System.out.println(userEntity);
 
         if(userEntity.getIsNew()) {
             return ResponseEntity.ok().body(NewUserCheckDTO.builder().isNew(1).build());

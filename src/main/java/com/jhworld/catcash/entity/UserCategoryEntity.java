@@ -12,6 +12,7 @@ import lombok.*;
 @Table(name = "user_category")
 public class UserCategoryEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_category_id")
     private Long userCategoryId;
 

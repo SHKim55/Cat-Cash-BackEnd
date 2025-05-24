@@ -50,7 +50,6 @@ public class BudgetService {
             }
 
             final BudgetEntity budget = new BudgetEntity();
-            budget.setBudgetId(System.currentTimeMillis());
             budget.setUser(userEntity);
             budget.setCategory(categoryEntity.get());
             budget.setAmount((long) budgetDTO.amount);

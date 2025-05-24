@@ -14,6 +14,7 @@ import java.util.List;
 @Entity(name = "item")
 public class ItemEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "item_id", nullable = false)
     private Long itemId;
 
