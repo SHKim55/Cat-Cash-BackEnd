@@ -14,5 +14,5 @@ import java.time.LocalDateTime;
 public class ChatDTO {
     private Long chatId;
     private String content;
-    private LocalDateTime localDateTime;
+    private LocalDateTime chatTime;
 }
