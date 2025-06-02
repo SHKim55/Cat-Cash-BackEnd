@@ -1,5 +1,8 @@
 package com.jhworld.catcash.service.chat;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jhworld.catcash.configuration.ChatGptConfig;
 import com.jhworld.catcash.configuration.JwtUtil;
 import com.jhworld.catcash.dto.chat.ChatDTO;
@@ -58,7 +61,7 @@ public class ChatService {
         return optionalUserEntity.orElse(null);
     }
 
-    public ResponseEntity<ChatResponseDTO> createMessage(String token, ChatRequestDTO userInput) {
+    public ResponseEntity<ChatResponseDTO> createMessage(String token, ChatRequestDTO userInput) throws JsonProcessingException {
         UserEntity userEntity = findUserByToken(token);
 
         if(userEntity == null) {
@@ -76,13 +79,13 @@ public class ChatService {
         headers.setBearerAuth(gptApiKey);
 
         List<GptRequest.Message> messages = new ArrayList<>();
-        messages.add(new GptRequest.Message(GptRole.system, "#배경\n당신은 유저와 대화하는 챗봇입니다. 당신은 유저와의 대화를 읽고, 현재 유저의 마지막 질문을 문맥을 포함해 파악 한 후 어떤 주제에 대해 이야기하고 있는지 간략하게 출력하세요. 추가로 유저의 마지막 질문에 대한 답변을 3가지 다른 방식으로 출력하세요. 답변은 json 형식이어야 합니다.\n#출력형식\n{\n\t\"주제\": \"유저의 마지막 질문이 어떤 대화 주제에 대한 것인지 간략한 키워드\",\n\t\"답변1\": \"유저의 질문에 대한 답변\",\n\t\"답변2\": \"답변1과 다른 방식으로 한 유저의 질문에 대한 답변\",\n\t\"답변3\": \"답변1, 답변2와 다른 방식으로 한 유저의 질문에 대한 답변\"}"));
+        messages.add(new GptRequest.Message(GptRole.system, "#배경\n당신은 유저와 대화하는 챗봇입니다. 당신은 유저와의 대화를 읽고, 현재 유저의 마지막 질문을 문맥을 포함해 파악 한 후 어떤 주제에 대해 이야기하고 있는지 간략하게 출력하세요. 추가로 유저의 마지막 질문에 대한 답변을 3가지 다른 내용을 포함해 출력하세요. 답변은 json 형식이어야 합니다.\n#출력형식\n{\n\t\"주제\": \"유저의 마지막 질문이 어떤 대화 주제에 대한 것인지 간략한 키워드\",\n\t\"답변1\": \"유저의 질문에 대한 답변\",\n\t\"답변2\": \"답변1과 다른 방식으로 한 유저의 질문에 대한 답변\",\n\t\"답변3\": \"답변1, 답변2와 다른 방식으로 한 유저의 질문에 대한 답변\"}"));
 
         for(ChatDTO chatDTO: userInput.getMessages()) {
             messages.add(new GptRequest.Message(chatDTO.getRole().equals("user") ? GptRole.user : GptRole.assistant, chatDTO.getContent()));
         }
 
-        GptRequest request = new GptRequest(ChatGptConfig.DEFAULT_MODEL, ChatGptConfig.TEMPERATURE, ChatGptConfig.MAx_TOKENS, messages);
+        GptRequest request = new GptRequest(ChatGptConfig.DEFAULT_MODEL, ChatGptConfig.TEMPERATURE, ChatGptConfig.MAx_TOKENS, messages, ChatGptConfig.TOP_P);
 
         RestTemplate restTemplate = new RestTemplate();
         HttpEntity<GptRequest> entity = new HttpEntity<>(request, headers);
@@ -100,6 +103,18 @@ public class ChatService {
         String responseText = response.getBody().getChoices().get(0).getMessage().getContent();
 
         System.out.println("response is " + responseText);
+
+        int braceIndex = responseText.indexOf('{');
+        if (braceIndex < 0) {
+            throw new IllegalArgumentException("JSON 시작 '{' 문자를 찾을 수 없습니다.");
+        }
+        String jsonOnly = responseText.substring(braceIndex);
+
+        // 2) Jackson ObjectMapper를 이용해 Map<String, String> 형태로 파싱
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, String> bridgeResult = mapper.readValue(
+                jsonOnly, new TypeReference<Map<String, String>>() {}
+        );
 
         return null;
 //

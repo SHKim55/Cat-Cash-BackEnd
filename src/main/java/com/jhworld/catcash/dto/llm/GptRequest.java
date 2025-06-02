@@ -17,6 +17,8 @@ public class GptRequest {
     @JsonProperty("max_tokens")
     private Integer maxTokens;
     private List<Message> messages;
+    @JsonProperty("top_p")
+    private Double topP;
 
     @Data
     @AllArgsConstructor

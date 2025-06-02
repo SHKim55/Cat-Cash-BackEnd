@@ -222,9 +222,10 @@ public class UserService {
                     map.put("isFirstVisitToday", false);
                 }
             }
+            System.out.println(map.get("isFirstVisitToday"));
+            return ResponseEntity.ok(map);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
-        return ResponseEntity.ok(map);
     }
 }

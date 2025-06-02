@@ -1,5 +1,6 @@
 package com.jhworld.catcash.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.jhworld.catcash.dto.chat.ChatDTO;
 import com.jhworld.catcash.dto.chat.ChatRequestDTO;
 import com.jhworld.catcash.dto.chat.ChatResponseDTO;
@@ -17,7 +18,7 @@ public class ChatController {
     public ChatController(ChatService chatService) { this.chatService = chatService; }
 
     @PostMapping("/new")
-    public ResponseEntity<ChatResponseDTO> createMessage(@RequestHeader(name = "Authorization") String token, @RequestBody() ChatRequestDTO chatRequestDTO) {
+    public ResponseEntity<ChatResponseDTO> createMessage(@RequestHeader(name = "Authorization") String token, @RequestBody() ChatRequestDTO chatRequestDTO) throws JsonProcessingException {
         System.out.println("new called");
         return chatService.createMessage(token, chatRequestDTO);
     }
