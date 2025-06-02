@@ -1,11 +1,13 @@
 package com.jhworld.catcash.service.fcm;
 
 import com.google.firebase.messaging.*;
+import com.jhworld.catcash.configuration.JwtUtil;
 import com.jhworld.catcash.dto.fcm.PushRegisterDTO;
 import com.jhworld.catcash.entity.UserDeviceEntity;
 import com.jhworld.catcash.entity.UserEntity;
 import com.jhworld.catcash.repository.UserDeviceRepository;
 import com.jhworld.catcash.repository.UserRepository;
+import io.jsonwebtoken.Claims;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,6 +22,15 @@ import java.util.Optional;
 public class PushNotificationService {
     private UserDeviceRepository userDeviceRepository;
     private UserRepository userRepository;
+    private JwtUtil jwtUtil;
+
+    private UserEntity findUserByToken(String token) {
+        Claims claims = jwtUtil.extractTokenValue(token);
+        String userSeq = claims.get("sub", String.class); // userSeq(username) 추출
+
+        Optional<UserEntity> optionalUserEntity = userRepository.findByUserSequence(userSeq);
+        return optionalUserEntity.orElse(null);
+    }
 
 //    @Scheduled(fixedRate = 10 * 60 * 1000)   // 10분마다 실행
 //    @Scheduled(cron = "0 0 10 ? * MON,WED,SAT", zone = "Asia/Seoul")
@@ -75,21 +86,21 @@ public class PushNotificationService {
     }
 
     @Transactional
-    public ResponseEntity<String> registerClientDevice(final PushRegisterDTO pushRegisterDTO) {
-        if(pushRegisterDTO == null) {
-            System.out.println("Error: Empty request body for push alarm registration");
-            return ResponseEntity.status(404).body("Error: Empty request body for push alarm registration");
+    public ResponseEntity<String> registerClientDevice(final String authToken, final String deviceToken) {
+        UserEntity userEntity = findUserByToken(authToken);
+        if(userEntity == null) {
+            System.out.println("Error: No such user");
+            return ResponseEntity.status(404).body("Error: No such user");
         }
 
-        Optional<UserEntity> optionalUserEntity = userRepository.findById(pushRegisterDTO.getUserId());
-        if(optionalUserEntity.isEmpty()) {
-            System.out.println("Error: Invalid user id");
-            return ResponseEntity.status(404).body("Error: Invalid user id");
+        if(deviceToken.isBlank()) {
+            System.out.println("Error: Device token is empty");
+            return ResponseEntity.status(404).body("Error: Device token is empty");
         }
 
         UserDeviceEntity userDeviceEntity = UserDeviceEntity.builder()
-                .deviceToken(pushRegisterDTO.getDeviceToken())
-                .user(optionalUserEntity.get())
+                .deviceToken(deviceToken)
+                .user(userEntity)
                 .build();
         userDeviceEntity = userDeviceRepository.save(userDeviceEntity);
 

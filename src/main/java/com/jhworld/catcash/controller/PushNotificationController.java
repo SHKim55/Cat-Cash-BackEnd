@@ -19,8 +19,9 @@ public class PushNotificationController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> registerClientDevice(@RequestBody PushRegisterDTO pushRegisterDTO) {
-        System.out.println("registering device : " + pushRegisterDTO.getDeviceToken());
-        return pushNotificationService.registerClientDevice(pushRegisterDTO);
+    public ResponseEntity<String> registerClientDevice(@RequestHeader(name = "Authorization") String authToken,
+                                                       @RequestBody String deviceToken) {
+        System.out.println("registering device : " + deviceToken);
+        return pushNotificationService.registerClientDevice(authToken, deviceToken);
     }
 }
