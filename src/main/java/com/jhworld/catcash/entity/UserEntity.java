@@ -85,4 +85,7 @@ public class UserEntity {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<UserCategoryEntity> userCategories;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private UserDeviceEntity userDevice;
 }
