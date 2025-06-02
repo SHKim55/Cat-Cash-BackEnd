@@ -3,6 +3,7 @@ package com.jhworld.catcash.service.chat;
 import com.jhworld.catcash.configuration.ChatGptConfig;
 import com.jhworld.catcash.configuration.JwtUtil;
 import com.jhworld.catcash.dto.chat.ChatDTO;
+import com.jhworld.catcash.dto.chat.ChatRequestDTO;
 import com.jhworld.catcash.dto.llm.GptRequest;
 import com.jhworld.catcash.dto.llm.GptResponse;
 import com.jhworld.catcash.entity.ChatEntity;
@@ -18,17 +19,13 @@ import io.jsonwebtoken.Claims;
 import lombok.AllArgsConstructor;
 import org.apache.coyote.Response;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class ChatService {
@@ -58,7 +55,8 @@ public class ChatService {
         return optionalUserEntity.orElse(null);
     }
 
-    public ResponseEntity<ChatDTO> createMessage(String token, String userText) {
+    public ResponseEntity<ChatDTO> createMessage(String token, ChatRequestDTO userInput) {
+        System.out.println("input is " + token + " and " + userInput);
         UserEntity userEntity = findUserByToken(token);
         if(userEntity == null) {
             System.out.println("Error: User not found");
@@ -69,14 +67,30 @@ public class ChatService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(gptApiKey);
 
+        List<Map<String, String>> messages = new ArrayList<>();
+
+        for(ChatDTO chatDTO: userInput.getMessages()) {
+            messages.add(new HashMap<>() {});
+        }
+
         GptRequest request = new GptRequest(
                 ChatGptConfig.DEFAULT_MODEL, ChatGptConfig.TEMPERATURE, ChatGptConfig.MAx_TOKENS,
-                List.of(new GptRequest.Message(GptRole.system, gptPrompt.getPrompt(true, userText)))
+                List.of(new GptRequest.Message(GptRole.system, gptPrompt.getPrompt(true, userInput.getMessages())))
         );
+
+        System.out.println("gpt 콜 준비 완료");
 
         RestTemplate restTemplate = new RestTemplate();
         HttpEntity<GptRequest> entity = new HttpEntity<>(request, headers);
-        ResponseEntity<GptResponse> response = restTemplate.postForEntity(ChatGptConfig.BASE_URL, entity, GptResponse.class);
+
+        ResponseEntity<GptResponse> response;
+        try {
+            response = restTemplate.postForEntity(ChatGptConfig.BASE_URL, entity, GptResponse.class);
+        } catch (Exception e) {
+            System.out.println("GPT API 콜 실패");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "ChatGPT API 호출 중 오류 발생", e);
+        }
+
 
         String responseText = response.getBody().getChoices().get(0).getMessage().getContent();
 
