@@ -23,6 +23,8 @@ public class ChatEntity {
     @Column(name = "created_time", nullable = false)
     private LocalDateTime createdTime;
 
+    @Column(name="role", nullable = false)
+    private String role;
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)

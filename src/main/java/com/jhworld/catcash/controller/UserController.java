@@ -32,4 +32,9 @@ public class UserController {
         return userService.getEnteringData(token);
     }
 
+    @GetMapping("/first-visit-today")
+    public ResponseEntity<Object> isFirstVisitToday(@RequestHeader("Authorization") String token) {
+        return userService.isFirstVisitToday(token);
+    }
+
 }

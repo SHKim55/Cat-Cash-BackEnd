@@ -13,4 +13,6 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class ChatRequestDTO {
     private ChatDTO[] messages;
+    private MemoryDTO[] memories;
+    private StatusDTO status;
 }

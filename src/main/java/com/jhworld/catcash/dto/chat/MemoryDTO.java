@@ -11,14 +11,8 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatDTO {
-    private Long chatId;
+public class MemoryDTO {
     private String content;
-    private LocalDateTime chatDate;
-    private String role;
-
-    public ChatDTO(String content, String role) {
-        this.chatDate = LocalDateTime.now();
-    }
+    private String createdAt;
 }
 
