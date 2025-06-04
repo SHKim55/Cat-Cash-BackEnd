@@ -1,4 +1,4 @@
-package com.jhworld.catcash.config;
+package com.jhworld.catcash.database_config;
 
 import javax.sql.DataSource;
 
