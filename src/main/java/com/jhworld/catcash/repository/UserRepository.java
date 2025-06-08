@@ -1,5 +1,6 @@
 package com.jhworld.catcash.repository;
 
+import com.jhworld.catcash.entity.UserDeviceEntity;
 import com.jhworld.catcash.entity.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -10,6 +11,8 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findById(Long aLong);
 
     Optional<UserEntity> findByUserSequence(String userSequence);
+
+    UserEntity findByUserDevice(UserDeviceEntity userDevice);
 
     @Override
     <S extends UserEntity> S save(S entity);
