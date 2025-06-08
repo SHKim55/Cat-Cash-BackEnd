@@ -10,13 +10,10 @@ import com.jhworld.catcash.entity.UserCatEntity;
 import com.jhworld.catcash.entity.UserEntity;
 import com.jhworld.catcash.repository.ChatRepository;
 import com.jhworld.catcash.repository.UserCatRepository;
-import com.jhworld.catcash.repository.UserCategoryRepository;
 import com.jhworld.catcash.repository.UserRepository;
 import com.jhworld.catcash.service.llm.GptPrompt;
 import com.jhworld.catcash.service.llm.GptRole;
 import io.jsonwebtoken.Claims;
-import lombok.AllArgsConstructor;
-import org.apache.coyote.Response;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -70,7 +67,7 @@ public class ChatService {
         headers.setBearerAuth(gptApiKey);
 
         GptRequest request = new GptRequest(
-                ChatGptConfig.DEFAULT_MODEL, ChatGptConfig.TEMPERATURE, ChatGptConfig.MAx_TOKENS,
+                ChatGptConfig.DEFAULT_MODEL, ChatGptConfig.TEMPERATURE, ChatGptConfig.MAX_TOKENS,
                 List.of(new GptRequest.Message(GptRole.system, gptPrompt.getPrompt(true, userText)))
         );
 
