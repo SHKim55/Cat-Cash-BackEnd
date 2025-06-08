@@ -15,6 +15,7 @@ public class PushNotificationController {
     @PostMapping("/test")
     public ResponseEntity<String> sendPushMessageToClient(@RequestBody String deviceToken) {
         System.out.println("Testing push notification with input device token");
+        System.out.println("Device Token in controller : " + deviceToken);
         return pushNotificationService.sendTestPushMessage(deviceToken);
     }
 
