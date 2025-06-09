@@ -3,18 +3,20 @@ package com.jhworld.catcash.service.chat;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.jhworld.catcash.configuration.ChatGptConfig;
 import com.jhworld.catcash.configuration.JwtUtil;
 import com.jhworld.catcash.dto.chat.*;
 import com.jhworld.catcash.dto.llm.GptRequest;
 import com.jhworld.catcash.dto.llm.GptResponse;
 import com.jhworld.catcash.entity.*;
+import com.jhworld.catcash.entity.pg.VectorChatEntity;
 import com.jhworld.catcash.repository.*;
+import com.jhworld.catcash.pg.repository.VectorChatRepository;
 import com.jhworld.catcash.service.llm.GptPrompt;
 import com.jhworld.catcash.service.llm.GptRole;
 import io.jsonwebtoken.Claims;
-import lombok.AllArgsConstructor;
-import org.apache.coyote.Response;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -23,9 +25,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class ChatService {
     private final UserRepository userRepository;
     private final UserCatRepository userCatRepository;
@@ -33,19 +35,24 @@ public class ChatService {
     private final RecentChatRepository recentChatRepository;
     private final GptPrompt gptPrompt;
     private final JwtUtil jwtUtil;
+    private final VectorChatRepository vectorChatRepository;
 
     public ChatService(UserRepository userRepository, UserCatRepository userCatRepository,
-                       ChatRepository chatRepository, RecentChatRepository recentChatRepository, GptPrompt gptPrompt, JwtUtil jwtUtil) {
+                       ChatRepository chatRepository, RecentChatRepository recentChatRepository, GptPrompt gptPrompt, JwtUtil jwtUtil, VectorChatRepository vectorChatRepository) {
         this.userRepository = userRepository;
         this.userCatRepository = userCatRepository;
         this.chatRepository = chatRepository;
         this.recentChatRepository = recentChatRepository;
         this.gptPrompt = gptPrompt;
         this.jwtUtil = jwtUtil;
+        this.vectorChatRepository = vectorChatRepository;
     }
 
     @Value("${chatgpt.api.key}")
     private String gptApiKey;
+
+    @Value("${anthropic.api.key}")
+    private String claudeApiKey;
 
     private UserEntity findUserByToken(String token) {
         Claims claims = jwtUtil.extractTokenValue(token);
@@ -56,6 +63,7 @@ public class ChatService {
     }
 
     public ResponseEntity<ChatResponseDTO> createMessage(String token, ChatRequestDTO userInput) throws JsonProcessingException {
+        // 설정
         UserEntity userEntity = findUserByToken(token);
 
         if(userEntity == null) {
@@ -68,12 +76,13 @@ public class ChatService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "해당 유저의 고양이가 존재하지 않습니다");
         }
 
+        // Hyde 방식을 위한 gpt 콜
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(gptApiKey);
 
         List<GptRequest.Message> messages = new ArrayList<>();
-        messages.add(new GptRequest.Message(GptRole.system, "#배경\n당신은 유저와 대화하는 챗봇입니다. 당신은 유저와의 대화를 읽고, 현재 유저의 마지막 질문을 문맥을 포함해 파악 한 후 어떤 주제에 대해 이야기하고 있는지 간략하게 출력하세요. 추가로 유저의 마지막 질문에 대한 답변을 3가지 다른 내용을 포함해 출력하세요. 답변은 json 형식이어야 합니다.\n#출력형식\n{\n\t\"topic\": \"유저의 마지막 질문이 어떤 대화 주제에 대한 것인지 간략한 키워드\",\n\t\"answer1\": \"유저의 질문에 대한 답변\",\n\t\"answer2\": \"답변1과 다른 방식으로 한 유저의 질문에 대한 답변\",\n\t\"answer3\": \"답변1, 답변2와 다른 방식으로 한 유저의 질문에 대한 답변\"}"));
+        messages.add(new GptRequest.Message(GptRole.system, ChatPrompt.getBridge()));
 
         for(ChatDTO chatDTO: userInput.getMessages()) {
             messages.add(new GptRequest.Message(chatDTO.getRole().equals("user") ? GptRole.user : GptRole.assistant, chatDTO.getContent()));
@@ -96,7 +105,7 @@ public class ChatService {
 
         String responseText = response.getBody().getChoices().get(0).getMessage().getContent();
 
-        System.out.println("response is " + responseText);
+        System.out.println("response text is " + responseText);
 
         int braceIndex = responseText.indexOf('{');
         if (braceIndex < 0) {
@@ -104,76 +113,145 @@ public class ChatService {
         }
         String jsonOnly = responseText.substring(braceIndex);
 
+        System.out.println("bidge input json " + jsonOnly);
+
+        jsonOnly = jsonOnly.replaceAll(",(?=\\s*\\})", "");
+
+        System.out.println("removed json only " + jsonOnly);
+
         // 2) Jackson ObjectMapper를 이용해 Map<String, String> 형태로 파싱
         ObjectMapper mapper = new ObjectMapper();
         Map<String, String> bridgeResult = mapper.readValue(
                 jsonOnly, new TypeReference<Map<String, String>>() {}
         );
 
-        Optional<RecentChatEntity> lastChat = recentChatRepository.findByUser(userEntity);
+        // 비슷한 경우 저장. 다른 경우 청크를 벡터화하고, 초기화
+        Optional<RecentChatEntity> lastChat = recentChatRepository.findFirstByUserOrderByCreatedTimeDesc(userEntity);
+        List<RecentChatEntity> allByUserOrderByCreatedTimeAsc = recentChatRepository.findAllByUserOrderByCreatedTimeAsc(userEntity);
         String currEmbedding = getEmbedding(bridgeResult.get("topic"));
         if(lastChat.isEmpty() || isSimilar(lastChat.get().getEmbedding(), currEmbedding, 0.7)) {
             System.out.println("isSimilar");
         }
         else {
+            List<GptRequest.Message> summary = new ArrayList<>();
+            summary.add(new GptRequest.Message(GptRole.system, ChatPrompt.getSummary()));
+
+            for(RecentChatEntity recentChat: allByUserOrderByCreatedTimeAsc) {
+                summary.add(new GptRequest.Message(recentChat.getRole().equals("user") ? GptRole.user : GptRole.assistant, recentChat.getChat()));
+            }
+
+            GptRequest summaryRequest = new GptRequest(ChatGptConfig.DEFAULT_MODEL, ChatGptConfig.TEMPERATURE, ChatGptConfig.MAx_TOKENS, summary, ChatGptConfig.TOP_P);
+            HttpEntity<GptRequest> summaryEntity = new HttpEntity<>(summaryRequest, headers);
+
+            ResponseEntity<GptResponse> summaryResponse = restTemplate.postForEntity(ChatGptConfig.BASE_URL, summaryEntity, GptResponse.class);
+
+            String summaryText = summaryResponse.getBody().getChoices().get(0).getMessage().getContent();
+
+            String summaryEmbedding = this.getEmbedding(summaryText);
+
+            this.vectorChatRepository.save(VectorChatEntity.builder()
+                    .embedding(this.parseEmbeddingVector(summaryEmbedding))
+                    .userId(userEntity.getUserId())
+                    .createdTime(LocalDateTime.now())
+                    .content(summaryText)
+                    .build()
+            );
+
+            this.recentChatRepository.deleteAllByUser(userEntity);
+
             System.out.println("isDifferent");
         }
+
+        String emb1 = getEmbedding(bridgeResult.get("answer1"));
+        String emb2 = getEmbedding(bridgeResult.get("answer2"));
+        String emb3 = getEmbedding(bridgeResult.get("answer3"));
+
+        List<VectorChatEntity> sims = vectorChatRepository
+                .findNearestByUserAnyOfThreeWithinThreshold(
+                        userEntity.getUserId(),
+                        emb1, emb2, emb3,
+                        0.7f,    // threshold
+                        5        // limit
+                );
+
+        for(VectorChatEntity vectorChatEntity: sims) {
+            System.out.println(vectorChatEntity.getContent());
+        }
+
+        // 가장 마지막 유저 입력 저장
+        List<String> recentChats = new ArrayList<>();
+        for(ChatDTO chat:userInput.getMessages()) {
+            if(!chat.getRole().equals("user")) {
+                recentChats.clear();
+            }
+            else {
+                recentChats.add(chat.getContent());
+            }
+        }
+
+        for(String recentChat: recentChats) {
+            recentChatRepository.save(RecentChatEntity.builder()
+                    .content(bridgeResult.get("topic"))
+                    .user(userEntity)
+                    .createdTime(LocalDateTime.now())
+                    .userCat(catEntity.get())
+                    .embedding(currEmbedding)
+                    .chat(recentChat)
+                    .role("user")
+                    .build()
+            );
+
+            chatRepository.save(
+                    ChatEntity.builder()
+                            .content(recentChat)
+                            .user(userEntity)
+                            .createdTime(LocalDateTime.now())
+                            .role("user")
+                            .userCat(catEntity.get())
+                            .build()
+            );
+        }
+
+        // 클로드로 채팅 응답 받기
+        String output = this.getChatCompletion(this.buildClaudeMessages(userInput.getMessages()), userEntity, catEntity.get(), userInput.getStatus());
+        System.out.println("output is " + output);
+
         recentChatRepository.save(RecentChatEntity.builder()
                 .content(bridgeResult.get("topic"))
                 .user(userEntity)
                 .createdTime(LocalDateTime.now())
                 .userCat(catEntity.get())
                 .embedding(currEmbedding)
+                .chat(output)
+                .role("assistant")
                 .build()
         );
 
-        return null;
-//
-//        List<String> recentChats = new ArrayList<>();
-//        for(ChatDTO chat:userInput.getMessages()) {
-//            if(!chat.getRole().equals("user")) {
-//                recentChats.clear();
-//            }
-//            else {
-//                recentChats.add(chat.getContent());
-//            }
-//        }
-//
-//        for(String recentChat: recentChats) {
-//            ChatEntity chatEntity = ChatEntity.builder()
-//                    .content(recentChat)
-//                    .user(userEntity)
-//                    .createdTime(LocalDateTime.now())
-//                    .role("user")
-//                    .userCat(catEntity.get())
-//                    .build();
-//            chatRepository.save(chatEntity);
-//        }
-//
-//
-//        ChatEntity responseChat = chatRepository.save(
-//                ChatEntity.builder()
-//                        .content(responseText)
-//                        .user(userEntity)
-//                        .createdTime(LocalDateTime.now())
-//                        .role("assistant")
-//                        .userCat(catEntity.get())
-//                        .build()
-//        );
-//
-//
-//        ChatDTO chatDTO = ChatDTO.builder()
-//                .chatId(responseChat.getChatId())
-//                .content(responseText)
-//                .chatDate(LocalDateTime.now())
-//                .role("assistant")
-//                .build();
-//
-//        List<ChatDTO> chatDTOs = new ArrayList<ChatDTO>();
-//        chatDTOs.add(chatDTO);
-//        ChatResponseDTO chatResponseDTO = ChatResponseDTO.builder().messages(chatDTOs).build();
-//
-//        return ResponseEntity.ok(chatResponseDTO);
+        List<String> responseChatList = ChatUtil.splitBySentenceAndLength(output);
+        List<ChatDTO> returnList = new ArrayList<ChatDTO>();
+
+
+        for(String chat: responseChatList) {
+            ChatEntity responseChat = chatRepository.save(
+                    ChatEntity.builder()
+                            .content(chat)
+                            .user(userEntity)
+                            .createdTime(LocalDateTime.now())
+                            .role("assistant")
+                            .userCat(catEntity.get())
+                            .build()
+            );
+
+            returnList.add(ChatDTO.builder()
+                    .chatId(responseChat.getChatId())
+                    .content(responseChat.getContent())
+                    .chatDate(responseChat.getCreatedTime())
+                    .role(responseChat.getRole())
+                    .build()
+            );
+        }
+
+        return ResponseEntity.ok(ChatResponseDTO.builder().messages(returnList).build());
     }
 
     public ResponseEntity<List<ChatDTO>> loadMessage(String token) {
@@ -197,6 +275,7 @@ public class ChatService {
 
         return ResponseEntity.ok(chatDTOList);
     }
+
 
     private boolean isSimilar(String vector1, String vector2, double threshold) throws JsonProcessingException {
         ObjectMapper objectMapper = new ObjectMapper();
@@ -255,5 +334,73 @@ public class ChatService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("임베딩 벡터를 JSON 문자열로 직렬화하는 데 실패했습니다.", e);
         }
+    }
+
+    private float[] parseEmbeddingVector(String jsonVector) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        try {
+            return objectMapper.readValue(jsonVector, float[].class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("임베딩 JSON 문자열을 float[]로 변환하는 데 실패했습니다.", e);
+        }
+    }
+
+    public String getChatCompletion(List<ClaudeMessage> messages, UserEntity user, UserCatEntity cat, StatusDTO statusDTO) throws JsonProcessingException {
+        String url = "https://api.anthropic.com/v1/messages";
+
+        String prompt = this.makeClaudePrompt(user, cat, statusDTO);
+
+        ClaudeChatRequest body = new ClaudeChatRequest(
+                "claude-sonnet-4-20250514",
+                300,
+                prompt,
+                messages
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-api-key", claudeApiKey);
+        headers.set("anthropic-version", "2023-06-01");
+
+        HttpEntity<ClaudeChatRequest> request = new HttpEntity<>(body, headers);
+
+        RestTemplate restTemplate = new RestTemplate();
+        String rawJson = restTemplate
+                .exchange(url, HttpMethod.POST, request, String.class)
+                .getBody();
+
+        ObjectMapper mapper = new ObjectMapper();
+        ClaudeChatResponse res = mapper.readValue(rawJson, ClaudeChatResponse.class);
+
+        StringBuilder sb = new StringBuilder();
+        for (ContentBlock block : res.getContent()) {
+            if ("text".equals(block.getType())) {
+                sb.append(block.getText());
+            }
+        }
+        String reply = sb.toString();
+
+        return reply;
+    }
+
+    private String makeClaudePrompt(UserEntity user, UserCatEntity cat, StatusDTO statusDTO) {
+        String basePrompt = ChatPrompt.getResponse(user.getUsername());
+
+        basePrompt += "\n#Informations\n";
+        basePrompt += "## 저축냥's State\n";
+        basePrompt += "### 배고픔\n" + ChatUtil.makeHungryStr(statusDTO.getHunger()) + "\n";
+        basePrompt += "### 애정도\n" + ChatUtil.makeAffectionStr(statusDTO.getLove()) + "\n";
+        return basePrompt;
+    }
+
+    public List<ClaudeMessage> buildClaudeMessages(ChatDTO[] userInputs) {
+        List<ClaudeMessage> messages = new ArrayList<>();
+        // 3) 각 엔티티를 role/user 구분해서 DTO에 매핑
+        for (ChatDTO dto : userInputs) {
+            String role = dto.getRole().equals("user") ? "user" : "assistant";
+            messages.add(new ClaudeMessage(role, dto.getContent()));
+        }
+
+        return messages;
     }
 }

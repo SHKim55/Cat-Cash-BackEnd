@@ -33,4 +33,10 @@ public class RecentChatEntity {
 
     @Column(name = "embedding", columnDefinition = "TEXT", nullable = false)
     private String embedding;
+
+    @Column(name = "chat", columnDefinition = "TEXT", nullable = false)
+    private String chat;
+
+    @Column(name = "role", columnDefinition = "TEXT", nullable = false)
+    private String role;
 }

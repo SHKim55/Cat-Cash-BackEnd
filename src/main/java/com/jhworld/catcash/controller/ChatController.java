@@ -19,7 +19,6 @@ public class ChatController {
 
     @PostMapping("/new")
     public ResponseEntity<ChatResponseDTO> createMessage(@RequestHeader(name = "Authorization") String token, @RequestBody() ChatRequestDTO chatRequestDTO) throws JsonProcessingException {
-        System.out.println("new called");
         return chatService.createMessage(token, chatRequestDTO);
     }
 
