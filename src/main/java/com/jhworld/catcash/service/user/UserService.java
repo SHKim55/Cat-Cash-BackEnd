@@ -16,8 +16,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -28,17 +32,19 @@ public class UserService {
     private final UserCatRepository userCatRepository;
     private final CategoryRepository categoryRepository;
     private final UserCategoryRepository userCategoryRepository;
+    private final LastLoginRepository lastLoginRepository;
     private final JwtUtil jwtUtil;
     private final LoginService loginService;
 
     public UserService(final UserRepository userRepository, final CatRepository catRepository,
                        final UserCatRepository userCatRepository, final CategoryRepository categoryRepository,
-                       final UserCategoryRepository userCategoryRepository, final JwtUtil jwtUtil, LoginService loginService) {
+                       final UserCategoryRepository userCategoryRepository, LastLoginRepository lastLoginRepository, final JwtUtil jwtUtil, LoginService loginService) {
         this.userRepository = userRepository;
         this.catRepository = catRepository;
         this.userCatRepository = userCatRepository;
         this.categoryRepository = categoryRepository;
         this.userCategoryRepository = userCategoryRepository;
+        this.lastLoginRepository = lastLoginRepository;
         this.jwtUtil = jwtUtil;
         this.loginService = loginService;
     }
@@ -159,6 +165,65 @@ public class UserService {
 
             return ResponseEntity.ok(json);
 
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+
+    public ResponseEntity<Object> isFirstVisitToday(String token) {
+        Map<String, Boolean> map = new HashMap<>();
+        try {
+            final UserEntity userEntity = this.loginService.findUserByToken(token);
+            if (userEntity == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "해당 유저가 존재하지 않습니다");
+            }
+
+
+            Optional<LastLoginEntity> lastLoginEntity = lastLoginRepository.findByUser(userEntity);
+            if(lastLoginEntity.isEmpty()) {
+                map.put("isFirstVisitToday", true);
+                this.lastLoginRepository.save(LastLoginEntity.builder().user(userEntity).createdTime(LocalDateTime.now()).build());
+
+                Long coin = userEntity.getCoin();
+                if (coin == null) {
+                    coin = 0L;
+                }
+                userEntity.setCoin(coin + 500);
+                this.userRepository.save(userEntity);
+            }
+            else {
+                ZoneId seoulZone = ZoneId.of("Asia/Seoul");
+                ZonedDateTime nowSeoul = ZonedDateTime.now(seoulZone);
+
+                LocalDateTime lastLoginTime = lastLoginEntity.get().getCreatedTime();
+
+                ZonedDateTime lastLoginSeoul = lastLoginTime.atZone(ZoneId.systemDefault())
+                        .withZoneSameInstant(seoulZone);
+
+                LocalDate lastLoginDate = lastLoginSeoul.toLocalDate();
+                LocalDate todayDate = nowSeoul.toLocalDate();
+
+                if (!lastLoginDate.equals(todayDate)) {
+                    map.put("isFirstVisitToday", true);
+
+                    LastLoginEntity newLastLogin = lastLoginEntity.get();
+
+                    // 기록을 갱신
+                    newLastLogin.setCreatedTime(LocalDateTime.now());
+                    lastLoginRepository.save(newLastLogin);
+
+                    Long coin = userEntity.getCoin();
+                    if (coin == null) {
+                        coin = 0L;
+                    }
+                    userEntity.setCoin(coin + 500);
+                    this.userRepository.save(userEntity);
+                } else {
+                    map.put("isFirstVisitToday", false);
+                }
+            }
+            System.out.println(map.get("isFirstVisitToday"));
+            return ResponseEntity.ok(map);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }

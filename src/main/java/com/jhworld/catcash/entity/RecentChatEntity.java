@@ -10,8 +10,8 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity(name = "chat")
-public class ChatEntity {
+@Entity(name = "recentChat")
+public class RecentChatEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "chat_id", nullable = false)
@@ -20,17 +20,23 @@ public class ChatEntity {
     @Column(nullable = false)
     private String content;
 
-    @Column(name = "created_time", nullable = false)
-    private LocalDateTime createdTime;
-
-    @Column(name="role", nullable = false)
-    private String role;
-
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
+    @Column(name = "created_time", nullable = false)
+    private LocalDateTime createdTime;
+
     @ManyToOne
     @JoinColumn(name = "user_cat_id", nullable = false)
     private UserCatEntity userCat;
+
+    @Column(name = "embedding", columnDefinition = "TEXT", nullable = false)
+    private String embedding;
+
+    @Column(name = "chat", columnDefinition = "TEXT", nullable = false)
+    private String chat;
+
+    @Column(name = "role", columnDefinition = "TEXT", nullable = false)
+    private String role;
 }
