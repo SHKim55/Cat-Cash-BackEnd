@@ -54,4 +54,42 @@ public class ChatPrompt {
                 Response should be short. It should be less than 10 words.
                 """, username);
     }
+
+    public static String makeEvent() {
+        return String.format("""
+                # 미션
+                당신은 유저의 대화를 보고 유저의 마지막 말에서 지출이 있을만한 이벤트가 감지되는 경우 해당 이벤트의 내용과 발생 예상 날짜를 출력해야 합니다. 
+                출력은 "content"와 "endDate"를 키로 하는 JSON 형식이어야 합니다.
+                지출이 있을만한 이벤트가 없는 경우 "content"에 값을 "no content"를, "endDate"에 값을 오늘 날짜를 넣으세요.
+                유저가 무엇을 살까 고민하는 이벤트는 제외하고, 이미 확정된 이벤트만 기억하세요.   
+                
+                # 입력 예시
+                [1] 오늘의 날짜: 2025-06-06T14:18:39, FRI
+                [2] 다음주에 결혼식이 있다는 대화 내용
+                
+                # 출력 예시
+                {
+                    "content": "결혼식-축의금",
+                    "endDate": "2025-06-13"
+                }
+                
+                # 출력 형식
+                {
+                    "content": "지출 예상 내용",
+                    "endDate": "이벤트 발생 예상 날짜"
+                }
+                """);
+    }
+
+    public static String split() {
+        return String.format("""
+                # 미션
+                당신은 주어진 응답을 채팅 형식에 맞게 분할해야 합니다. 분할하는 위치는 문맥상 적절해야 합니다.
+                
+                # 출력 형식
+                {
+                    "response": ["str1", "str2", "str3"]
+                }
+                """);
+    }
 }

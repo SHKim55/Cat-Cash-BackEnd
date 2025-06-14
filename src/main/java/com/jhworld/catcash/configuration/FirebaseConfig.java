@@ -5,6 +5,7 @@ import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import java.io.FileInputStream;
@@ -19,10 +20,12 @@ public class FirebaseConfig {
     @PostConstruct
     public void initialize() {
         try {
-            FileInputStream serviceAccount = new FileInputStream(firebaseKeyPath);
+//            FileInputStream serviceAccount = new FileInputStream(firebaseKeyPath);
+            ClassPathResource resource = new ClassPathResource("firebase/cat-cash-firebase-sdk.json");
+
 
             FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                    .setCredentials(GoogleCredentials.fromStream(resource.getInputStream()))
                     .build();
 
             if (FirebaseApp.getApps().isEmpty()) {

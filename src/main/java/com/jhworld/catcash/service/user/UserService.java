@@ -228,4 +228,11 @@ public class UserService {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
+
+    public ResponseEntity<Map<String, String >> getToken() {
+        Optional<UserEntity> userEntity = this.userRepository.findById(1L);
+        Map<String, String> map = new HashMap<>();
+        map.put("body", jwtUtil.generateToken(userEntity.get().getUserSequence()));
+        return ResponseEntity.ok(map);
+    }
 }

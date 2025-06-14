@@ -25,30 +25,8 @@ public class ChatUtil {
         }
 
         final int MAX_LENGTH = 20;
-        int start = 0;
-        int len = text.length();
 
-        while (start < len) {
-            int remaining = len - start;
 
-            if (remaining <= MAX_LENGTH) {
-                result.add(text.substring(start).trim());
-                break;
-            }
-
-            int cutoff = start + MAX_LENGTH;
-
-            // 공백을 찾아 자를 위치 결정 (cutoff 이후의 첫 공백)
-            int spacePos = text.indexOf(' ', cutoff);
-            if (spacePos == -1) {
-                // 공백이 없으면 남은 전체
-                result.add(text.substring(start).trim());
-                break;
-            } else {
-                result.add(text.substring(start, spacePos).trim());
-                start = spacePos + 1; // 공백 다음부터 다시 시작
-            }
-        }
 
         return result;
     }

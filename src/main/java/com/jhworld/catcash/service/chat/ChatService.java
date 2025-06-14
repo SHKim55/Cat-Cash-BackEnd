@@ -2,6 +2,7 @@ package com.jhworld.catcash.service.chat;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.jhworld.catcash.configuration.ChatGptConfig;
@@ -26,11 +27,15 @@ import com.jhworld.catcash.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -42,9 +47,11 @@ public class ChatService {
     private final GptPrompt gptPrompt;
     private final JwtUtil jwtUtil;
     private final VectorChatRepository vectorChatRepository;
+    private final ExpenditureRepository expenditureRepository;
+    private final ChatEventRepository chatEventRepository;
 
     public ChatService(UserRepository userRepository, UserCatRepository userCatRepository,
-                       ChatRepository chatRepository, RecentChatRepository recentChatRepository, GptPrompt gptPrompt, JwtUtil jwtUtil, VectorChatRepository vectorChatRepository) {
+                       ChatRepository chatRepository, RecentChatRepository recentChatRepository, GptPrompt gptPrompt, JwtUtil jwtUtil, VectorChatRepository vectorChatRepository, ExpenditureRepository expenditureRepository, ChatEventRepository chatEventRepository) {
         this.userRepository = userRepository;
         this.userCatRepository = userCatRepository;
         this.chatRepository = chatRepository;
@@ -52,6 +59,8 @@ public class ChatService {
         this.gptPrompt = gptPrompt;
         this.jwtUtil = jwtUtil;
         this.vectorChatRepository = vectorChatRepository;
+        this.expenditureRepository = expenditureRepository;
+        this.chatEventRepository = chatEventRepository;
     }
 
     @Value("${chatgpt.api.key}")
@@ -59,6 +68,9 @@ public class ChatService {
 
     @Value("${anthropic.api.key}")
     private String claudeApiKey;
+
+    @Value("${weather_api}")
+    private String weatherApiKey;
 
     private UserEntity findUserByToken(String token) {
         Claims claims = jwtUtil.extractTokenValue(token);
@@ -115,8 +127,10 @@ public class ChatService {
 
         int braceIndex = responseText.indexOf('{');
         if (braceIndex < 0) {
-            throw new IllegalArgumentException("JSON 시작 '{' 문자를 찾을 수 없습니다.");
+            responseText = "{\"topic\":\"기억\"," + "\"answer1\": \"" + responseText +"\"," + "\"answer2\": \"" + responseText +"\"," + "\"answer3\": \"" + responseText +"\""  + "}";
+            System.out.println(responseText);
         }
+        braceIndex = responseText.indexOf('{');
         String jsonOnly = responseText.substring(braceIndex);
 
         System.out.println("bidge input json " + jsonOnly);
@@ -152,6 +166,7 @@ public class ChatService {
             ResponseEntity<GptResponse> summaryResponse = restTemplate.postForEntity(ChatGptConfig.BASE_URL, summaryEntity, GptResponse.class);
 
             String summaryText = summaryResponse.getBody().getChoices().get(0).getMessage().getContent();
+            System.out.println("summary text is " + summaryText);
 
             String summaryEmbedding = this.getEmbedding(summaryText);
 
@@ -220,6 +235,25 @@ public class ChatService {
 
         // 클로드로 채팅 응답 받기
         String output = this.getChatCompletion(this.buildClaudeMessages(userInput.getMessages()), userEntity, catEntity.get(), userInput.getStatus());
+        if(output.equals("down")) {
+            List<GptRequest.Message> tempMessage = new ArrayList<>();
+            String prompt = this.makeClaudePrompt(userEntity, catEntity.get(), userInput.getStatus());
+            tempMessage.add(new GptRequest.Message(GptRole.system, prompt));
+            for(ChatDTO chatDTO: userInput.getMessages()) {
+                tempMessage.add(new GptRequest.Message(chatDTO.getRole().equals("user") ? GptRole.user : GptRole.assistant, chatDTO.getContent()));
+            }
+            GptRequest requesttemp = new GptRequest("gpt-4.1-mini-2025-04-14", 0.8, 500, tempMessage, 0.9);
+            HttpEntity<GptRequest> entityTemp = new HttpEntity<>(requesttemp, headers);
+            ResponseEntity<GptResponse> responseTemp;
+            try {
+                responseTemp = restTemplate.postForEntity(ChatGptConfig.BASE_URL, entityTemp, GptResponse.class);
+            } catch (Exception e) {
+                System.out.println("Gpt Apit Call 실패");
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "", e);
+            }
+            output = responseTemp.getBody().getChoices().get(0).getMessage().getContent();
+            System.out.println("gpt 우회!");
+        }
         System.out.println("output is " + output);
 
         recentChatRepository.save(RecentChatEntity.builder()
@@ -233,7 +267,28 @@ public class ChatService {
                 .build()
         );
 
-        List<String> responseChatList = ChatUtil.splitBySentenceAndLength(output);
+        List<String> responseChatList = new ArrayList<>();
+        if (output == null || output.isEmpty()) {
+            responseChatList.add("");
+        }
+        else {
+            final int MAX_LENGTH = 20;
+            assert output != null;
+            if (output.length() <= MAX_LENGTH) {
+                responseChatList.add(output);
+            }
+            // 길 경우 GPT를 호출해서 자르기
+            else {
+                try {
+                    List<String> gptSplit = callGptToSplit(output);
+                    responseChatList.addAll(gptSplit);
+                } catch (Exception e) {
+                    // GPT 호출 실패 시 fallback
+                    responseChatList.add(output);
+                }
+            }
+        }
+
         List<ChatDTO> returnList = new ArrayList<ChatDTO>();
 
 
@@ -257,7 +312,114 @@ public class ChatService {
             );
         }
 
+        saveEvent(userInput, userEntity);
+
         return ResponseEntity.ok(ChatResponseDTO.builder().messages(returnList).build());
+    }
+
+    private List<String> callGptToSplit(String output) throws JsonProcessingException {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(gptApiKey);
+
+        List<GptRequest.Message> messages = new ArrayList<>();
+        messages.add(new GptRequest.Message(GptRole.system, ChatPrompt.split()));
+        messages.add(new GptRequest.Message(GptRole.user, output));
+
+        GptRequest request = new GptRequest("gpt-4.1-mini-2025-04-14", 0.0, ChatGptConfig.MAx_TOKENS, messages, 1.0);
+
+        RestTemplate restTemplate = new RestTemplate();
+        HttpEntity<GptRequest> entity = new HttpEntity<>(request, headers);
+
+
+        ResponseEntity<GptResponse> response;
+        try {
+            response = restTemplate.postForEntity(ChatGptConfig.BASE_URL, entity, GptResponse.class);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "ChatGPT API 호출 중 오류 발생", e);
+        }
+
+        String responseText = response.getBody().getChoices().get(0).getMessage().getContent();
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(responseText);
+
+        JsonNode responseArray = root.path("response");
+
+        List<String> result = new ArrayList<>();
+        if (responseArray.isArray()) {
+            for (JsonNode item : responseArray) {
+                result.add(item.asText());
+            }
+        }
+
+        return result;
+    }
+
+    private ResponseEntity<Void> saveEvent(ChatRequestDTO chatRequestDTO, UserEntity user) throws JsonProcessingException {
+        LocalDate today = LocalDate.now();
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd, E", Locale.KOREAN);
+        String formatted = today.format(formatter);
+
+        System.out.println(formatted);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(gptApiKey);
+
+        List<GptRequest.Message> messages = new ArrayList<>();
+        messages.add(new GptRequest.Message(GptRole.system, ChatPrompt.makeEvent()));
+
+        int size = chatRequestDTO.getMessages().length;
+        int fromIndex = Math.max(0, size - 10);
+
+        ChatDTO[] last10 = Arrays.copyOfRange(chatRequestDTO.getMessages(), fromIndex, size);
+
+        String messageStr = "";
+        for(ChatDTO chatDTO: last10) {
+            if(chatDTO.getRole().equals("user")) {
+                messageStr+=("user: " + chatDTO.getContent() + "\n");
+            }
+            else {
+                messageStr+=("cat: " + chatDTO.getContent() + "\n");
+            }
+        }
+
+        messages.add(new GptRequest.Message(GptRole.user, "[1] " + LocalDate.now().toString() + "\n[2]" + messageStr));
+
+        GptRequest request = new GptRequest("gpt-4.1-mini-2025-04-14", 0.0, ChatGptConfig.MAx_TOKENS, messages, 1.0);
+
+        RestTemplate restTemplate = new RestTemplate();
+        HttpEntity<GptRequest> entity = new HttpEntity<>(request, headers);
+
+        ResponseEntity<GptResponse> response;
+        try {
+            response = restTemplate.postForEntity(ChatGptConfig.BASE_URL, entity, GptResponse.class);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "ChatGPT API 호출 중 오류 발생", e);
+        }
+
+        String responseText = response.getBody().getChoices().get(0).getMessage().getContent();
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree(responseText);
+
+        String content = node.path("content").asText();
+        if(content.equals("no content")) return null;
+
+        String endDateStr = node.path("endDate").asText();
+        LocalDateTime endDate = LocalDate.parse(endDateStr).atStartOfDay();
+
+        // 2. ChatEventEntity 생성 및 저장
+        ChatEventEntity eventEntity = ChatEventEntity.builder()
+                .content(content)
+                .endDate(endDate)
+                .createdTime(LocalDateTime.now())
+                .user(user)
+                .build();
+
+        chatEventRepository.save(eventEntity);
+        return null;
     }
 
     public ResponseEntity<List<ChatDTO>> loadMessage(String token) {
@@ -273,7 +435,7 @@ public class ChatService {
             chatDTOList.add(ChatDTO.builder()
                     .chatId(chat.getChatId())
                     .content(chat.getContent())
-                    .chatDate(LocalDateTime.now())
+                    .chatDate(chat.getCreatedTime())
                     .role(chat.getRole())
                     .build()
             );
@@ -371,31 +533,76 @@ public class ChatService {
         HttpEntity<ClaudeChatRequest> request = new HttpEntity<>(body, headers);
 
         RestTemplate restTemplate = new RestTemplate();
-        String rawJson = restTemplate
-                .exchange(url, HttpMethod.POST, request, String.class)
-                .getBody();
 
-        ObjectMapper mapper = new ObjectMapper();
-        ClaudeChatResponse res = mapper.readValue(rawJson, ClaudeChatResponse.class);
+        try {
+            String rawJson = restTemplate
+                    .exchange(url, HttpMethod.POST, request, String.class)
+                    .getBody();
 
-        StringBuilder sb = new StringBuilder();
-        for (ContentBlock block : res.getContent()) {
-            if ("text".equals(block.getType())) {
-                sb.append(block.getText());
+            ObjectMapper mapper = new ObjectMapper();
+            ClaudeChatResponse res = mapper.readValue(rawJson, ClaudeChatResponse.class);
+
+            StringBuilder sb = new StringBuilder();
+            for (ContentBlock block : res.getContent()) {
+                if ("text".equals(block.getType())) {
+                    sb.append(block.getText());
+                }
+            }
+            String reply = sb.toString();
+
+            return reply;
+        } catch (HttpServerErrorException e) {
+            int status = e.getStatusCode().value();
+
+            if (status == 500 || status == 529 || status == 503) {
+                return "down";
+            } else {
+                throw e;
             }
         }
-        String reply = sb.toString();
-
-        return reply;
     }
 
     private String makeClaudePrompt(UserEntity user, UserCatEntity cat, StatusDTO statusDTO) {
         String basePrompt = ChatPrompt.getResponse(user.getUsername());
+        List<ExpenditureEntity> expenditureEntities = expenditureRepository.findAllByUser(user);
+        String result = expenditureEntities.stream()
+                .map(expenditureEntity -> {
+                    return "[" + expenditureEntity.getDate() + "] " + expenditureEntity.getCategory().getCategory() + ": " + expenditureEntity.getMemo() + "(" + expenditureEntity.getAmount() + ")";
+                }) // 혹은 e -> e.getCategoryName()
+                .collect(Collectors.joining("\n"));
+
+        RestTemplate restTemplate = new RestTemplate();
+        String weatherResponse = restTemplate.getForObject("https://api.openweathermap.org/data/2.5/weather?q=Seoul&units=metric&lang=kr&appid=" + weatherApiKey, String.class);
+        String weatherStr = "";
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(weatherResponse);
+
+            String description = root.path("weather").get(0).path("description").asText();
+            double temp = root.path("main").path("temp").asDouble();
+
+            weatherStr = "현재 날씨는 " + description + "이며, 기온은 " + temp + "도입니다.";
+        } catch (Exception e) {
+            return "날씨 정보를 불러오지 못했습니다.";
+        }
+
+        List<ChatEventEntity> chatEvents = chatEventRepository.findAllByUser(user);
+        String eventResult = chatEvents.stream()
+                .map(event -> {
+                    return "[" + event.getEndDate() + "] " + event.getContent();
+                })
+                .collect(Collectors.joining("\n"));
+
 
         basePrompt += "\n#Informations\n";
         basePrompt += "## 저축냥's State\n";
         basePrompt += "### 배고픔\n" + ChatUtil.makeHungryStr(statusDTO.getHunger()) + "\n";
         basePrompt += "### 애정도\n" + ChatUtil.makeAffectionStr(statusDTO.getLove()) + "\n";
+        basePrompt += "## 소비 상황\n" + result;
+        basePrompt += "## 오늘 날짜" + "\n" + LocalDate.now().toString() + "\n";
+        basePrompt += "## 오늘 날씨" + "\n" + weatherStr;
+        basePrompt += "## 앞으로 소비가 예상되는 이벤트\n" + eventResult;
+
         return basePrompt;
     }
 

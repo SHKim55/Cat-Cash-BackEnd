@@ -72,12 +72,12 @@ public class PushNotificationService {
         headers.setBearerAuth(gptApiKey);
 
         GptRequest request = new GptRequest(
-                ChatGptConfig.DEFAULT_MODEL, ChatGptConfig.TEMPERATURE, ChatGptConfig.MAX_TOKENS,
+                ChatGptConfig.DEFAULT_MODEL, ChatGptConfig.TEMPERATURE, ChatGptConfig.MAx_TOKENS,
                 List.of(new GptRequest.Message(
                         GptRole.system, PushMessageConfig.getSystemPrompt()),
                         new GptRequest.Message(
                         GptRole.user, gptRequestContent)
-                )
+                ), ChatGptConfig.TOP_P
         );
 
         RestTemplate restTemplate = new RestTemplate();
@@ -126,34 +126,36 @@ public class PushNotificationService {
         return messages;
     }
 
-    @Scheduled(fixedRate = 2 * 60 * 1000)   // 10분마다 실행
+//    @Scheduled(fixedRate = 2 * 60 * 1000)   // 10분마다 실행
 //    @Scheduled(cron = "0 0 10 ? * MON,WED,SAT", zone = "Asia/Seoul")
     public void sendMessageToClients() {
         System.out.println("푸시메시지 전송");
-        List<Message> messages;
-//        List<UserDeviceEntity> userDeviceEntityList = userDeviceRepository.findAll();
-
-        messages = createClientMessage();
-
-        try {
-            for(Message message : messages) {
-                String response = FirebaseMessaging.getInstance().send(message);
-                System.out.println("푸시 알림 전송 응답: " + response);
-            }
-        } catch (FirebaseMessagingException e) {
-            e.printStackTrace();
-        }
+        sendTestPushMessage("cCFoug5RQTWNCcgw4oKVpy%3AAPA91bGEMAoq3_jFVqv12eDofp7duUhHhuy8LU7rvuSBUblXcKvQeY5YhojHPZzMdkjP1kX9iFW8rLXoWmFVnOLitH8B6cZqmBCjiCDI43W2nMcDwSl49d8=");
+//        List<Message> messages;
+////        List<UserDeviceEntity> userDeviceEntityList = userDeviceRepository.findAll();
+//
+//        messages = createClientMessage();
+//
+//        try {
+//            for(Message message : messages) {
+//                String response = FirebaseMessaging.getInstance().send(message);
+//                System.out.println("푸시 알림 전송 응답: " + response);
+//            }
+//        } catch (FirebaseMessagingException e) {
+//            e.printStackTrace();
+//        }
     }
 
     public ResponseEntity<String> sendTestPushMessage(String deviceToken) {
         System.out.println("deviceToken : " + deviceToken);
+        deviceToken = "esJ7fd-dQaexY-G6RzpuXp%3AAPA91bG7BlijR6pgwvE-Tldasn3ydBZUtqBgfaUPm2iqHNGDh3phbpYDyNLY-fkIcdngVWa3uLpixFJwtyLKTy1IbEypTpx9QEw7PRvomA2w2Hb2sGxoKlU=";
 
         String token = deviceToken;
         Message message = Message.builder()
                 .setToken(token)
                 .setNotification(Notification.builder()
-                        .setTitle("테스트 메시지")
-                        .setBody("테스트 메시지 본문")
+                        .setTitle("이수민은 봐라")
+                        .setBody("당신은 코딩요정의 저주에 걸렸습니다. 의자를 5바퀴 돌면서 나는 빡빡이다를 외치지 않으면 평생 C언어로 코딩을 해야 합니다.")
                         .build())
                 .build();
 
@@ -180,11 +182,19 @@ public class PushNotificationService {
             return ResponseEntity.status(404).body("Error: Device token is empty");
         }
 
-        UserDeviceEntity userDeviceEntity = UserDeviceEntity.builder()
-                .deviceToken(deviceToken)
-                .user(userEntity)
-                .build();
-        userDeviceEntity = userDeviceRepository.save(userDeviceEntity);
+        Optional<UserDeviceEntity> isExist = userDeviceRepository.findByUser(userEntity);
+        if(isExist.isEmpty()) {
+            UserDeviceEntity userDeviceEntity = UserDeviceEntity.builder()
+                    .deviceToken(deviceToken)
+                    .user(userEntity)
+                    .build();
+            userDeviceEntity = userDeviceRepository.save(userDeviceEntity);
+        }
+        else {
+            UserDeviceEntity userDeviceEntity = isExist.get();
+            userDeviceEntity.setDeviceToken(deviceToken);
+            userDeviceRepository.save(userDeviceEntity);
+        }
 
         return ResponseEntity.ok("Success");
     }
