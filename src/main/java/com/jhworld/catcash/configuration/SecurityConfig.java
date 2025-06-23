@@ -28,6 +28,7 @@ public class SecurityConfig {
                         .requestMatchers("/healthcheck/**").permitAll()
                         .requestMatchers("/login/**").permitAll() // 로그인 API는 인증 없이 접근 가능
                         .requestMatchers("/user/**").permitAll()
+                        .requestMatchers("/push/**").permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // JWT 사용 시 Stateless
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class); // JWT 필터 추가

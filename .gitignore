@@ -38,3 +38,5 @@ out/
 
 ### Application Properties ###
 src/main/resources/application.properties
+
+src/main/resources/firebase/cat-cash-firebase-sdk.json
